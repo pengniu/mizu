@@ -78,6 +78,9 @@ func basicTapTest(t *testing.T, shouldCheckSrcAndDest bool, extraArgs... string)
 				expectedPodsStr += fmt.Sprintf("Name:%vNamespace:%v", expectedPods[i].Name, expectedPods[i].Namespace)
 			}
 
+			RunCypressTests(t, fmt.Sprintf("npx cypress open --env entriesCount=%d,arrayDict=%v,shouldCheckSrcAndDest=%v",
+				entriesCount, expectedPodsStr, shouldCheckSrcAndDest))
+			time.Sleep(time.Hour * 8)
 			RunCypressTests(t, fmt.Sprintf("npx cypress run --spec  \"cypress/integration/tests/UiTest.js\" --env entriesCount=%d,arrayDict=%v,shouldCheckSrcAndDest=%v",
 				entriesCount, expectedPodsStr, shouldCheckSrcAndDest))
 		})

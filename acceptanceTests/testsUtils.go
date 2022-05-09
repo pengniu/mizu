@@ -40,13 +40,14 @@ type PodDescriptor struct {
 }
 
 func GetCliPath() (string, error) {
-	dir, filePathErr := os.Getwd()
-	if filePathErr != nil {
-		return "", filePathErr
-	}
-
-	cliPath := path.Join(dir, "../cli/bin/mizu_ci")
-	return cliPath, nil
+	return "/Users/roeegadot/temp123/33.0-dev0", nil
+	//dir, filePathErr := os.Getwd()
+	//if filePathErr != nil {
+	//	return "", filePathErr
+	//}
+	//
+	//cliPath := path.Join(dir, "../cli/bin/mizu_ci")
+	//return cliPath, nil
 }
 
 func GetMizuFolderPath() (string, error) {
@@ -212,14 +213,15 @@ func DeleteKubeFile(kubeContext string, namespace string, filename string) error
 }
 
 func getDefaultCommandArgs() []string {
-	agentImageValue := os.Getenv("MIZU_CI_IMAGE")
+	// agentImageValue := os.Getenv("MIZU_CI_IMAGE")
 	setFlag := "--set"
 	telemetry := "telemetry=false"
-	agentImage := fmt.Sprintf("agent-image=%s", agentImageValue)
-	imagePullPolicy := "image-pull-policy=IfNotPresent"
+	// agentImage := fmt.Sprintf("agent-image=%s", agentImageValue)
+	// imagePullPolicy := "image-pull-policy=IfNotPresent"
 	headless := "headless=true"
 
-	return []string{setFlag, telemetry, setFlag, agentImage, setFlag, imagePullPolicy, setFlag, headless}
+	return []string{setFlag, telemetry, setFlag, headless}
+	// return []string{setFlag, telemetry, setFlag, agentImage, setFlag, imagePullPolicy, setFlag, headless}
 }
 
 func GetDefaultTapCommandArgs() []string {

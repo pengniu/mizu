@@ -64,19 +64,19 @@ kubectl proxy --port=8080 > ${PROXY_LOG} &
 PID1=$!
 echo "kubectl proxy process id is ${PID1} and log of proxy in ${PROXY_LOG}"
 
-if [[ -z "${CI}" ]]; then
-  echo "Setting env var of mizu ci image"
-  export MIZU_CI_IMAGE="mizu/ci:0.0"
-  echo "Build agent image"
-  docker build -t "${MIZU_CI_IMAGE}" .
-else
-  echo "not building docker image in CI because it is created as separate step"
-fi
-
-minikube image load "${MIZU_CI_IMAGE}"
-
-echo "Build cli"
-cd cli && make build GIT_BRANCH=ci SUFFIX=ci
+#if [[ -z "${CI}" ]]; then
+#  echo "Setting env var of mizu ci image"
+#  export MIZU_CI_IMAGE="mizu/ci:0.0"
+#  echo "Build agent image"
+#  docker build -t "${MIZU_CI_IMAGE}" .
+#else
+#  echo "not building docker image in CI because it is created as separate step"
+#fi``
+#
+#minikube image load "${MIZU_CI_IMAGE}"
+#
+#echo "Build cli"
+#cd cli && make build GIT_BRANCH=ci SUFFIX=ci
 
 # TODO: need to understand how to fail if password is asked (sudo)
 echo "Starting tunnel"
