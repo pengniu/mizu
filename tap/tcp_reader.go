@@ -47,8 +47,9 @@ func NewTcpReader(ident string, tcpId *api.TcpID, parent *tcpStream, isClient bo
 	}
 }
 
-func (reader *tcpReader) run(options *api.TrafficFilteringOptions, wg *sync.WaitGroup) {
-	defer wg.Done()
+// func (reader *tcpReader) run(options *api.TrafficFilteringOptions, wg *sync.WaitGroup) {
+func (reader *tcpReader) run(options *api.TrafficFilteringOptions) {
+	// defer wg.Done()
 
 	if dbgctl.MizuTapperDisableDissectors {
 		b := bufio.NewReader(reader)

@@ -14,9 +14,12 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
+
+	"net/http"
+	_ "net/http/pprof"
 
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/struCoder/pidusage"
@@ -59,8 +62,9 @@ var tls = flag.Bool("tls", false, "Enable TLS tapper")
 var memprofile = flag.String("memprofile", "", "Write memory profile")
 
 type TapOpts struct {
-	HostMode         bool
-	IgnoredPorts     []uint16
+	HostMode               bool
+	IgnoredPorts           []uint16
+	staleConnectionTimeout time.Duration
 }
 
 var extensions []*api.Extension                     // global
@@ -85,12 +89,16 @@ func StartPassiveTapper(opts *TapOpts, outputItems chan *api.OutputChannelItem, 
 		}
 	}
 
+	go http.ListenAndServe("localhost:6060", nil)
+
 	if GetMemoryProfilingEnabled() {
 		diagnose.StartMemoryProfiler(os.Getenv(MemoryProfilingDumpPath), os.Getenv(MemoryProfilingTimeIntervalSeconds))
 	}
 
-	assembler := initializePassiveTapper(opts, outputItems, streamsMap)
-	go startPassiveTapper(streamsMap, assembler)
+	// assembler := initializePassiveTapper(opts, outputItems, streamsMap)
+	assembler := initializePassiveTapper(opts, outputItems)
+	// go startPassiveTapper(streamsMap, assembler)
+	go startPassiveTapper(assembler)
 }
 
 func UpdateTapTargets(newTapTargets []v1.Pod) {
@@ -208,7 +216,8 @@ func initializePacketSources() error {
 	return err
 }
 
-func initializePassiveTapper(opts *TapOpts, outputItems chan *api.OutputChannelItem, streamsMap api.TcpStreamMap) *tcpAssembler {
+// func initializePassiveTapper(opts *TapOpts, outputItems chan *api.OutputChannelItem, streamsMap api.TcpStreamMap) *tcpAssembler {
+func initializePassiveTapper(opts *TapOpts, outputItems chan *api.OutputChannelItem) *tcpAssembler {
 	diagnose.InitializeErrorsMap(*debug, *verbose, *quiet)
 	diagnose.InitializeTapperInternalStats()
 
@@ -219,24 +228,27 @@ func initializePassiveTapper(opts *TapOpts, outputItems chan *api.OutputChannelI
 	}
 
 	opts.IgnoredPorts = append(opts.IgnoredPorts, buildIgnoredPortsList(*ignoredPorts)...)
+	opts.staleConnectionTimeout = time.Second * time.Duration(*staleTimeoutSeconds)
 
-	assembler := NewTcpAssembler(outputItems, streamsMap, opts)
+	// assembler := NewTcpAssembler(outputItems, streamsMap, opts)
+	assembler := NewTcpAssembler(outputItems, opts)
 
 	return assembler
 }
 
-func startPassiveTapper(streamsMap api.TcpStreamMap, assembler *tcpAssembler) {
-	go streamsMap.CloseTimedoutTcpStreamChannels()
+// func startPassiveTapper(streamsMap api.TcpStreamMap, assembler *tcpAssembler) {
+func startPassiveTapper(assembler *tcpAssembler) {
+	// go streamsMap.CloseTimedoutTcpStreamChannels()
 
 	diagnose.AppStats.SetStartTime(time.Now())
 
 	staleConnectionTimeout := time.Second * time.Duration(*staleTimeoutSeconds)
 	cleaner := Cleaner{
-		assembler:         assembler.Assembler,
-		assemblerMutex:    &assembler.assemblerMutex,
+		assembler: assembler.Assembler,
+		// assemblerMutex:    &assembler.assemblerMutex,
 		cleanPeriod:       cleanPeriod,
 		connectionTimeout: staleConnectionTimeout,
-		streamsMap:        streamsMap,
+		// streamsMap:        streamsMap,
 	}
 	cleaner.start()
 

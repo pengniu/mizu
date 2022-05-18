@@ -17,38 +17,38 @@ type CleanerStats struct {
 
 type Cleaner struct {
 	assembler         *reassembly.Assembler
-	assemblerMutex    *sync.Mutex
+	// assemblerMutex    *sync.Mutex
 	cleanPeriod       time.Duration
 	connectionTimeout time.Duration
 	stats             CleanerStats
 	statsMutex        sync.Mutex
-	streamsMap        api.TcpStreamMap
+	// streamsMap        api.TcpStreamMap
 }
 
 func (cl *Cleaner) clean() {
-	startCleanTime := time.Now()
+	// startCleanTime := time.Now()
 
-	cl.assemblerMutex.Lock()
-	logger.Log.Debugf("Assembler Stats before cleaning %s", cl.assembler.Dump())
-	flushed, closed := cl.assembler.FlushCloseOlderThan(startCleanTime.Add(-cl.connectionTimeout))
-	cl.assemblerMutex.Unlock()
+	// cl.assemblerMutex.Lock()
+	// logger.Log.Debugf("Assembler Stats before cleaning %s", cl.assembler.Dump())
+	// flushed, closed := cl.assembler.FlushCloseOlderThan(startCleanTime.Add(-cl.connectionTimeout))
+	// cl.assemblerMutex.Unlock()
 
-	cl.streamsMap.Range(func(k, v interface{}) bool {
-		reqResMatchers := v.(api.TcpStream).GetReqResMatchers()
-		for _, reqResMatcher := range reqResMatchers {
-			if reqResMatcher == nil {
-				continue
-			}
-			deleted := deleteOlderThan(reqResMatcher.GetMap(), startCleanTime.Add(-cl.connectionTimeout))
-			cl.stats.deleted += deleted
-		}
-		return true
-	})
+	// cl.streamsMap.Range(func(k, v interface{}) bool {
+	// 	reqResMatchers := v.(api.TcpStream).GetReqResMatchers()
+	// 	for _, reqResMatcher := range reqResMatchers {
+	// 		if reqResMatcher == nil {
+	// 			continue
+	// 		}
+	// 		deleted := deleteOlderThan(reqResMatcher.GetMap(), startCleanTime.Add(-cl.connectionTimeout))
+	// 		cl.stats.deleted += deleted
+	// 	}
+	// 	return true
+	// })
 
 	cl.statsMutex.Lock()
 	logger.Log.Debugf("Assembler Stats after cleaning %s", cl.assembler.Dump())
-	cl.stats.flushed += flushed
-	cl.stats.closed += closed
+	// cl.stats.flushed += flushed
+	// cl.stats.closed += closed
 	cl.statsMutex.Unlock()
 }
 

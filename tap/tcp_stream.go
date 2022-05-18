@@ -14,7 +14,8 @@ import (
  * In our implementation, we pass information from ReassembledSG to the TcpReader through a shared channel.
  */
 type tcpStream struct {
-	id             int64
+	connectionId string
+	// id             int64
 	isClosed       bool
 	protocol       *api.Protocol
 	isTapTarget    bool
@@ -24,25 +25,37 @@ type tcpStream struct {
 	counterPairs   []*api.CounterPair
 	reqResMatchers []api.RequestResponseMatcher
 	createdAt      time.Time
-	streamsMap     api.TcpStreamMap
+	processor      *tcpStreamProcessor
+	serverPayloads []*tcpReaderDataMsg
+	clientPayloads []*tcpReaderDataMsg
+	// streamsMap     api.TcpStreamMap
 	sync.Mutex
 }
 
-func NewTcpStream(isTapTarget bool, streamsMap api.TcpStreamMap, capture api.Capture) *tcpStream {
+// func NewTcpStream(isTapTarget bool, streamsMap api.TcpStreamMap, capture api.Capture) *tcpStream {
+func NewTcpStream(connectionId string, isTapTarget bool, capture api.Capture, processor *tcpStreamProcessor) *tcpStream {
 	return &tcpStream{
-		isTapTarget: isTapTarget,
-		streamsMap:  streamsMap,
-		origin:      capture,
-		createdAt:   time.Now(),
+		connectionId: connectionId,
+		isTapTarget:  isTapTarget,
+		// streamsMap:  streamsMap,
+		origin:         capture,
+		createdAt:      time.Now(),
+		serverPayloads: make([]*tcpReaderDataMsg, 0),
+		clientPayloads: make([]*tcpReaderDataMsg, 0),
+		processor:      processor,
 	}
 }
 
-func (t *tcpStream) getId() int64 {
-	return t.id
-}
+// func (t *tcpStream) getId() int64 {
+// 	return t.id
+// }
 
-func (t *tcpStream) setId(id int64) {
-	t.id = id
+// func (t *tcpStream) setId(id int64) {
+// 	t.id = id
+// }
+
+func (t *tcpStream) done() {
+	t.processor.removedStreams <- t
 }
 
 func (t *tcpStream) close() {
@@ -55,7 +68,7 @@ func (t *tcpStream) close() {
 
 	t.isClosed = true
 
-	t.streamsMap.Delete(t.id)
+	// t.streamsMap.Delete(t.id)
 
 	t.client.close()
 	t.server.close()
@@ -100,4 +113,8 @@ func (t *tcpStream) GetIsTapTarget() bool {
 
 func (t *tcpStream) GetIsClosed() bool {
 	return t.isClosed
+}
+
+func (t *tcpStream) newPayload(payload *tcpReaderDataMsg) {
+	t.processor.payloads <- payload
 }

@@ -3,16 +3,18 @@ package tap
 import (
 	"time"
 
-	"github.com/up9inc/mizu/tap/api"
+	"github.com/google/gopacket/reassembly"
 )
 
 type tcpReaderDataMsg struct {
+	dir       reassembly.TCPFlowDirection
+	stream    *tcpStream
 	bytes     []byte
 	timestamp time.Time
 }
 
-func NewTcpReaderDataMsg(data []byte, timestamp time.Time) api.TcpReaderDataMsg {
-	return &tcpReaderDataMsg{data, timestamp}
+func NewTcpReaderDataMsg(dir reassembly.TCPFlowDirection, stream *tcpStream, data []byte, timestamp time.Time) *tcpReaderDataMsg {
+	return &tcpReaderDataMsg{dir, stream, data, timestamp}
 }
 
 func (dataMsg *tcpReaderDataMsg) GetBytes() []byte {

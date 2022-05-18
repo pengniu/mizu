@@ -2,7 +2,7 @@ package tap
 
 import (
 	"fmt"
-	"sync"
+	// "sync"
 
 	"github.com/up9inc/mizu/logger"
 	"github.com/up9inc/mizu/tap/api"
@@ -19,14 +19,16 @@ import (
  * Generates a new tcp stream for each new tcp connection. Closes the stream when the connection closes.
  */
 type tcpStreamFactory struct {
-	wg         sync.WaitGroup
-	emitter    api.Emitter
-	streamsMap api.TcpStreamMap
-	ownIps     []string
-	opts       *TapOpts
+	// wg         sync.WaitGroup
+	emitter api.Emitter
+	// streamsMap api.TcpStreamMap
+	ownIps    []string
+	opts      *TapOpts
+	processor *tcpStreamProcessor
 }
 
-func NewTcpStreamFactory(emitter api.Emitter, streamsMap api.TcpStreamMap, opts *TapOpts) *tcpStreamFactory {
+// func NewTcpStreamFactory(emitter api.Emitter, streamsMap api.TcpStreamMap, opts *TapOpts) *tcpStreamFactory {
+func NewTcpStreamFactory(emitter api.Emitter, opts *TapOpts) *tcpStreamFactory {
 	var ownIps []string
 
 	if localhostIPs, err := getLocalhostIPs(); err != nil {
@@ -37,12 +39,26 @@ func NewTcpStreamFactory(emitter api.Emitter, streamsMap api.TcpStreamMap, opts 
 	} else {
 		ownIps = localhostIPs
 	}
+	processor := newTcpStreamProcessor()
+	go processor.process()
 
 	return &tcpStreamFactory{
-		emitter:    emitter,
-		streamsMap: streamsMap,
-		ownIps:     ownIps,
-		opts:       opts,
+		emitter: emitter,
+		// streamsMap: streamsMap,
+		ownIps:    ownIps,
+		opts:      opts,
+		processor: processor,
+	}
+}
+
+func (factory *tcpStreamFactory) getConnectionId(sa string, sp string, da string, dp string) string {
+	s := fmt.Sprintf("%s:%s", sa, sp)
+	d := fmt.Sprintf("%s:%s", da, dp)
+
+	if s > d {
+		return fmt.Sprintf("%s#%s", s, d)
+	} else {
+		return fmt.Sprintf("%s#%s", d, s)
 	}
 }
 
@@ -57,10 +73,12 @@ func (factory *tcpStreamFactory) New(net, transport gopacket.Flow, tcpLayer *lay
 
 	props := factory.getStreamProps(srcIp, srcPort, dstIp, dstPort)
 	isTapTarget := props.isTapTarget
-	stream := NewTcpStream(isTapTarget, factory.streamsMap, getPacketOrigin(ac))
+	// stream := NewTcpStream(isTapTarget, factory.streamsMap, getPacketOrigin(ac))
+	connectionId := factory.getConnectionId(srcIp, srcPort, dstIp, dstPort)
+	stream := NewTcpStream(connectionId, isTapTarget, getPacketOrigin(ac), factory.processor)
 	reassemblyStream := NewTcpReassemblyStream(fmt.Sprintf("%s:%s", net, transport), tcpLayer, fsmOptions, stream)
 	if stream.GetIsTapTarget() {
-		stream.setId(factory.streamsMap.NextId())
+		// stream.setId(factory.streamsMap.NextId())
 		for _, extension := range extensions {
 			counterPair := &api.CounterPair{
 				Request:  0,
@@ -100,18 +118,19 @@ func (factory *tcpStreamFactory) New(net, transport gopacket.Flow, tcpLayer *lay
 			factory.emitter,
 		)
 
-		factory.streamsMap.Store(stream.getId(), stream)
+		factory.processor.newStreams <- stream
+		// factory.streamsMap.Store(stream.getId(), stream)
 
-		factory.wg.Add(2)
-		go stream.client.run(filteringOptions, &factory.wg)
-		go stream.server.run(filteringOptions, &factory.wg)
+		// factory.wg.Add(2)
+		// go stream.client.run(filteringOptions, &factory.wg)
+		// go stream.server.run(filteringOptions, &factory.wg)
 	}
 	return reassemblyStream
 }
 
-func (factory *tcpStreamFactory) WaitGoRoutines() {
-	factory.wg.Wait()
-}
+// func (factory *tcpStreamFactory) WaitGoRoutines() {
+// 	factory.wg.Wait()
+// }
 
 func inArrayPod(pods []v1.Pod, address string) bool {
 	for _, pod := range pods {

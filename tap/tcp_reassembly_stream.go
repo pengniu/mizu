@@ -138,18 +138,20 @@ func (t *tcpReassemblyStream) ReassembledSG(sg reassembly.ScatterGather, ac reas
 			// This channel is read by an tcpReader object
 			diagnose.AppStats.IncReassembledTcpPayloadsCount()
 			timestamp := ac.GetCaptureInfo().Timestamp
-			if dir == reassembly.TCPDirClientToServer {
-				t.tcpStream.client.sendMsgIfNotClosed(NewTcpReaderDataMsg(data, timestamp))
-			} else {
-				t.tcpStream.server.sendMsgIfNotClosed(NewTcpReaderDataMsg(data, timestamp))
-			}
+			// if dir == reassembly.TCPDirClientToServer {
+			// t.tcpStream.newClientPayload(NewTcpReaderDataMsg(data, timestamp))
+			// t.tcpStream.client.sendMsgIfNotClosed(NewTcpReaderDataMsg(data, timestamp))
+			// } else {
+			t.tcpStream.newPayload(NewTcpReaderDataMsg(dir, t.tcpStream, data, timestamp))
+			// t.tcpStream.server.sendMsgIfNotClosed(NewTcpReaderDataMsg(data, timestamp))
+			// }
 		}
 	}
 }
 
 func (t *tcpReassemblyStream) ReassemblyComplete(ac reassembly.AssemblerContext) bool {
 	if t.tcpStream.GetIsTapTarget() && !t.tcpStream.GetIsClosed() {
-		t.tcpStream.close()
+		t.tcpStream.done()
 	}
 	// do not remove the connection to allow last ACK
 	return false
