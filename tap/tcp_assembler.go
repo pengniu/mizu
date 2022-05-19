@@ -27,6 +27,7 @@ type tcpAssembler struct {
 	// assemblerMutex sync.Mutex
 	ignoredPorts           []uint16
 	staleConnectionTimeout time.Duration
+	processor              *tcpStreamProcessor
 }
 
 // Context
@@ -47,8 +48,11 @@ func NewTcpAssembler(outputItems chan *api.OutputChannelItem, opts *TapOpts) *tc
 		OutputChannel: outputItems,
 	}
 
+	processor := newTcpStreamProcessor()
+	go processor.process()
+
 	// streamFactory := NewTcpStreamFactory(emitter, streamsMap, opts)
-	streamFactory := NewTcpStreamFactory(emitter, opts)
+	streamFactory := NewTcpStreamFactory(emitter, opts, processor)
 	streamPool := reassembly.NewStreamPool(streamFactory)
 	assembler := reassembly.NewAssembler(streamPool)
 
@@ -67,6 +71,7 @@ func NewTcpAssembler(outputItems chan *api.OutputChannelItem, opts *TapOpts) *tc
 		streamFactory:          streamFactory,
 		ignoredPorts:           opts.IgnoredPorts,
 		staleConnectionTimeout: opts.staleConnectionTimeout,
+		processor:              processor,
 	}
 }
 
@@ -97,16 +102,21 @@ func (a *tcpAssembler) processPacket(packetInfo *source.TcpPacketInfo, dumpPacke
 			// 	packet.NetworkLayer().NetworkFlow().Dst(), packet.TransportLayer().TransportFlow().Dst(),
 			// 	tcp.SYN, tcp.ACK, tcp.FIN, tcp.RST,
 			// 	tcp.Seq, tcp.Ack, tcp.Window)
+			net := packet.NetworkLayer().NetworkFlow()
+			transport := packet.TransportLayer().TransportFlow()
+			connectionId := getConnectionId(net.Src().String(), transport.Src().String(), net.Dst().String(), transport.Dst().String())
 
-			c := context{
-				CaptureInfo: packet.Metadata().CaptureInfo,
-				Origin:      packetInfo.Source.Origin,
-			}
-			diagnose.InternalStats.Totalsz += len(tcp.Payload)
-			if !dbgctl.MizuTapperDisableTcpReassembly {
-				// a.assemblerMutex.Lock()
-				a.AssembleWithContext(packet.NetworkLayer().NetworkFlow(), tcp, &c)
-				// a.assemblerMutex.Unlock()
+			if a.processor.shouldAssemble(connectionId) {
+				c := context{
+					CaptureInfo: packet.Metadata().CaptureInfo,
+					Origin:      packetInfo.Source.Origin,
+				}
+				diagnose.InternalStats.Totalsz += len(tcp.Payload)
+				if !dbgctl.MizuTapperDisableTcpReassembly {
+					// a.assemblerMutex.Lock()
+					a.AssembleWithContext(packet.NetworkLayer().NetworkFlow(), tcp, &c)
+					// a.assemblerMutex.Unlock()
+				}
 			}
 		}
 	}

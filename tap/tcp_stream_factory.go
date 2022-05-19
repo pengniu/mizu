@@ -28,7 +28,7 @@ type tcpStreamFactory struct {
 }
 
 // func NewTcpStreamFactory(emitter api.Emitter, streamsMap api.TcpStreamMap, opts *TapOpts) *tcpStreamFactory {
-func NewTcpStreamFactory(emitter api.Emitter, opts *TapOpts) *tcpStreamFactory {
+func NewTcpStreamFactory(emitter api.Emitter, opts *TapOpts, processor *tcpStreamProcessor) *tcpStreamFactory {
 	var ownIps []string
 
 	if localhostIPs, err := getLocalhostIPs(); err != nil {
@@ -39,8 +39,6 @@ func NewTcpStreamFactory(emitter api.Emitter, opts *TapOpts) *tcpStreamFactory {
 	} else {
 		ownIps = localhostIPs
 	}
-	processor := newTcpStreamProcessor()
-	go processor.process()
 
 	return &tcpStreamFactory{
 		emitter: emitter,
@@ -51,7 +49,7 @@ func NewTcpStreamFactory(emitter api.Emitter, opts *TapOpts) *tcpStreamFactory {
 	}
 }
 
-func (factory *tcpStreamFactory) getConnectionId(sa string, sp string, da string, dp string) string {
+func getConnectionId(sa string, sp string, da string, dp string) string {
 	s := fmt.Sprintf("%s:%s", sa, sp)
 	d := fmt.Sprintf("%s:%s", da, dp)
 
@@ -74,7 +72,7 @@ func (factory *tcpStreamFactory) New(net, transport gopacket.Flow, tcpLayer *lay
 	props := factory.getStreamProps(srcIp, srcPort, dstIp, dstPort)
 	isTapTarget := props.isTapTarget
 	// stream := NewTcpStream(isTapTarget, factory.streamsMap, getPacketOrigin(ac))
-	connectionId := factory.getConnectionId(srcIp, srcPort, dstIp, dstPort)
+	connectionId := getConnectionId(srcIp, srcPort, dstIp, dstPort)
 	stream := NewTcpStream(connectionId, isTapTarget, getPacketOrigin(ac), factory.processor)
 	reassemblyStream := NewTcpReassemblyStream(fmt.Sprintf("%s:%s", net, transport), tcpLayer, fsmOptions, stream)
 	if stream.GetIsTapTarget() {

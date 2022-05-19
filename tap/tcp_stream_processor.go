@@ -13,6 +13,7 @@ type tcpStreamProcessor struct {
 	newStreams     chan *tcpStream
 	removedStreams chan *tcpStream
 	payloads       chan *tcpReaderDataMsg
+	streamsMapLock sync.RWMutex
 }
 
 func newTcpStreamProcessor() *tcpStreamProcessor {
@@ -38,38 +39,43 @@ func (p *tcpStreamProcessor) process() {
 		}
 	}
 }
-func (p *tcpStreamProcessor) streamExists(stream *tcpStream) bool {
-	_, ok := p.streams[stream.connectionId]
+
+func (p *tcpStreamProcessor) streamExists(connectionId string) bool {
+	p.streamsMapLock.RLock()
+	defer p.streamsMapLock.RUnlock()
+	_, ok := p.streams[connectionId]
 	return ok
 }
 
+func (p *tcpStreamProcessor) shouldAssemble(connectionId string) bool {
+	return p.streamExists(connectionId) || len(p.streams) < 20
+}
+
 func (p *tcpStreamProcessor) newStream(stream *tcpStream) {
-	if !p.streamExists(stream) && len(p.streams) > 1000 {
+	if !p.shouldAssemble(stream.connectionId) {
 		return
 	}
 
 	// logger.Log.Infof("Stream added %s", stream.connectionId)
-	p.streams[stream.connectionId] = stream
 	diagnose.AppStats.IncLiveTcpStreams()
+	p.streamsMapLock.Lock()
+	defer p.streamsMapLock.Unlock()
+	p.streams[stream.connectionId] = stream
 }
 
 func (p *tcpStreamProcessor) streamRemoved(stream *tcpStream) {
-	if !p.streamExists(stream) {
-		stream.close()
-		return
-	}
 	// logger.Log.Infof("Stream removed %s", stream.connectionId)
 	p.dissect(stream, stream.client, stream.clientPayloads)
 	p.dissect(stream, stream.server, stream.serverPayloads)
 	stream.close()
-	delete(p.streams, stream.connectionId)
+
 	diagnose.AppStats.DecLiveTcpStreams()
+	p.streamsMapLock.Lock()
+	defer p.streamsMapLock.Unlock()
+	delete(p.streams, stream.connectionId)
 }
 
 func (p *tcpStreamProcessor) newPayload(payload *tcpReaderDataMsg) {
-	if !p.streamExists(payload.stream) {
-		return
-	}
 	// logger.Log.Infof("Stream new payload %s", payload.stream.connectionId)
 	if payload.dir == reassembly.TCPDirClientToServer {
 		payload.stream.clientPayloads = append(payload.stream.clientPayloads, payload)
