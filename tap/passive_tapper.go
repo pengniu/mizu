@@ -22,7 +22,6 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/shirou/gopsutil/cpu"
-	"github.com/struCoder/pidusage"
 	"github.com/up9inc/mizu/logger"
 	"github.com/up9inc/mizu/tap/api"
 	"github.com/up9inc/mizu/tap/diagnose"
@@ -132,7 +131,7 @@ func printNewTapTargets(success bool) {
 	}
 }
 
-func printPeriodicStats(cleaner *Cleaner) {
+func printPeriodicStats(cleaner *Cleaner, processor *tcpStreamProcessor) {
 	statsPeriod := time.Second * time.Duration(*statsevery)
 	ticker := time.NewTicker(statsPeriod)
 
@@ -162,21 +161,21 @@ func printPeriodicStats(cleaner *Cleaner) {
 		// At this moment
 		memStats := runtime.MemStats{}
 		runtime.ReadMemStats(&memStats)
-		sysInfo, err := pidusage.GetStat(os.Getpid())
-		if err != nil {
-			sysInfo = &pidusage.SysInfo{
-				CPU:    -1,
-				Memory: -1,
-			}
-		}
+		// sysInfo, err := pidusage.GetStat(os.Getpid())
+		// if err != nil {
+		// 	sysInfo = &pidusage.SysInfo{
+		// 		CPU:    -1,
+		// 		Memory: -1,
+		// 	}
+		// }
 		logger.Log.Infof(
 			"mem: %d, goroutines: %d, cpu: %f, cores: %d/%d, rss: %f",
 			memStats.HeapAlloc,
 			runtime.NumGoroutine(),
-			sysInfo.CPU,
+			processor.sysInfo.CPU,
 			logicalCoreCount,
 			physicalCoreCount,
-			sysInfo.Memory)
+			processor.sysInfo.Memory)
 
 		// Since the last print
 		cleanStats := cleaner.dumpStats()
@@ -230,8 +229,10 @@ func initializePassiveTapper(opts *TapOpts, outputItems chan *api.OutputChannelI
 	opts.IgnoredPorts = append(opts.IgnoredPorts, buildIgnoredPortsList(*ignoredPorts)...)
 	opts.staleConnectionTimeout = time.Second * time.Duration(*staleTimeoutSeconds)
 
+	processor := newTcpStreamProcessor()
+
 	// assembler := NewTcpAssembler(outputItems, streamsMap, opts)
-	assembler := NewTcpAssembler(outputItems, opts)
+	assembler := NewTcpAssembler(outputItems, opts, processor)
 
 	return assembler
 }
@@ -252,7 +253,7 @@ func startPassiveTapper(assembler *tcpAssembler) {
 	}
 	cleaner.start()
 
-	go printPeriodicStats(&cleaner)
+	go printPeriodicStats(&cleaner, assembler.processor)
 
 	assembler.processPackets(*hexdumppkt, mainPacketInputChan)
 

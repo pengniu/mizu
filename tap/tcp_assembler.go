@@ -42,13 +42,12 @@ func (c *context) GetCaptureInfo() gopacket.CaptureInfo {
 }
 
 // func NewTcpAssembler(outputItems chan *api.OutputChannelItem, streamsMap api.TcpStreamMap, opts *TapOpts) *tcpAssembler {
-func NewTcpAssembler(outputItems chan *api.OutputChannelItem, opts *TapOpts) *tcpAssembler {
+func NewTcpAssembler(outputItems chan *api.OutputChannelItem, opts *TapOpts, processor *tcpStreamProcessor) *tcpAssembler {
 	var emitter api.Emitter = &api.Emitting{
 		AppStats:      &diagnose.AppStats,
 		OutputChannel: outputItems,
 	}
 
-	processor := newTcpStreamProcessor()
 	go processor.process()
 
 	// streamFactory := NewTcpStreamFactory(emitter, streamsMap, opts)

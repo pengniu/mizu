@@ -1,9 +1,12 @@
 package tap
 
 import (
+	"os"
 	"sync"
+	"time"
 
 	"github.com/google/gopacket/reassembly"
+	"github.com/struCoder/pidusage"
 	"github.com/up9inc/mizu/logger"
 	"github.com/up9inc/mizu/tap/diagnose"
 )
@@ -14,6 +17,8 @@ type tcpStreamProcessor struct {
 	removedStreams chan *tcpStream
 	payloads       chan *tcpReaderDataMsg
 	streamsMapLock sync.RWMutex
+	sysInfo        *pidusage.SysInfo
+	tapperPid      int
 }
 
 func newTcpStreamProcessor() *tcpStreamProcessor {
@@ -22,14 +27,33 @@ func newTcpStreamProcessor() *tcpStreamProcessor {
 		newStreams:     make(chan *tcpStream),
 		removedStreams: make(chan *tcpStream),
 		payloads:       make(chan *tcpReaderDataMsg),
+		tapperPid:      os.Getpid(),
+		sysInfo:        &pidusage.SysInfo{Memory: -1, CPU: -1},
 	}
+}
+func (p *tcpStreamProcessor) updateUsage() {
+	sysInfo, err := pidusage.GetStat(p.tapperPid)
+
+	if err != nil {
+		logger.Log.Warningf("Unable to get CPU Usage for %d", p.tapperPid)
+		p.sysInfo = &pidusage.SysInfo{
+			CPU:    -1,
+			Memory: -1,
+		}
+		return
+	}
+
+	p.sysInfo = sysInfo
 }
 
 func (p *tcpStreamProcessor) process() {
 	logger.Log.Infof("Running tcp stream processor")
+	ticker := time.NewTicker(1000 * time.Millisecond)
 
 	for {
 		select {
+		case <-ticker.C:
+			p.updateUsage()
 		case stream := <-p.newStreams:
 			p.newStream(stream)
 		case stream := <-p.removedStreams:
@@ -48,7 +72,11 @@ func (p *tcpStreamProcessor) streamExists(connectionId string) bool {
 }
 
 func (p *tcpStreamProcessor) shouldAssemble(connectionId string) bool {
-	return p.streamExists(connectionId) || len(p.streams) < 20
+	if p.streamExists(connectionId) {
+		return true
+	}
+
+	return p.sysInfo.CPU < 60
 }
 
 func (p *tcpStreamProcessor) newStream(stream *tcpStream) {
